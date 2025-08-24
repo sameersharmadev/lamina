@@ -23,6 +23,7 @@ import {
     streamAiResponse,
     makeNotesPrompt
 } from '../lib/prompt';
+import { marked } from 'marked';
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -389,31 +390,33 @@ export default function MarkdownEditor({ fileId, fileName, user, settings }) {
                     parsedContent = '';
             }
 
+            // Close the dialog immediately
+            setShowCustomDialog(false);
+            setCustomValue('');
+
+            let streamedContent = '';
             if (editor) {
                 editor.chain().focus().setContent('AI is generating...').run();
             }
-            let streamedContent = '';
+
             await streamAiResponse(
                 parsedContent,
-                'deepseek/deepseek-r1:free', 
+                'deepseek/deepseek-r1:free',
                 makeNotesPrompt(parsedContent),
                 (token) => {
                     streamedContent += token;
                     if (editor) {
-                        editor.commands.setContent(streamedContent);
+                        // Convert Markdown to HTML and set it
+                        editor.commands.setContent(marked(streamedContent));
                     }
                 }
             );
 
-            console.log('Streamed AI content:', streamedContent); 
-
             toast.success('Content generated!');
         } catch (err) {
-            console.error('AI error:', err); 
+            console.error('AI error:', err);
             toast.error('Failed to parse or send content');
         }
-        setShowCustomDialog(false);
-        setCustomValue('');
     };
 
     // Use handleParseAndSend instead of insertCustomContent in your dialog
