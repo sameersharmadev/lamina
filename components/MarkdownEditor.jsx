@@ -12,25 +12,17 @@ import Link from '@tiptap/extension-link';
 import Highlight from '@tiptap/extension-highlight';
 import Image from '@tiptap/extension-image';
 import { toast } from 'sonner';
-import { 
-    Loader2, 
-    Bold, 
-    Italic, 
-    Strikethrough, 
-    Code, 
-    List, 
-    ListOrdered, 
-    Quote, 
-    Undo, 
-    Redo,
-    Heading1,
-    Heading2,
-    Heading3,
-    Link2,
-    CheckSquare,
-    Highlighter
-} from 'lucide-react';
+import { Loader2, Bold, Italic, Strikethrough, Code, List, ListOrdered, Quote, Undo, Redo, Heading1, Heading2, Heading3, Link2, CheckSquare, Highlighter, FileText, Youtube, File, Globe2, AlignLeft } from 'lucide-react';
 import { useCustomToast } from '../lib/useCustomToast';
+import {
+    getYoutubeTranscript,
+    parsePdf,
+    parseDoc,
+    fetchWebpageText,
+    getLongText,
+    streamAiResponse,
+    makeNotesPrompt
+} from '../lib/prompt';
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -45,8 +37,8 @@ const ToolbarButton = ({ onClick, isActive, disabled, children, title }) => (
         title={title}
         className={`
             p-2 rounded-md text-sm font-medium transition-colors relative
-            ${isActive 
-                ? 'bg-primary text-primary-foreground shadow-sm' 
+            ${isActive
+                ? 'bg-primary text-primary-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
             }
             ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
@@ -67,10 +59,13 @@ export default function MarkdownEditor({ fileId, fileName, user, settings }) {
     const [lastSaved, setLastSaved] = useState(null);
     const [showLinkDialog, setShowLinkDialog] = useState(false);
     const [linkUrl, setLinkUrl] = useState('');
+    const [showCustomDialog, setShowCustomDialog] = useState(false);
+    const [customType, setCustomType] = useState('');
+    const [customValue, setCustomValue] = useState('');
     const showToast = useCustomToast();
     // Add state to force toolbar re-renders
     const [, setForceUpdate] = useState({});
-    
+
     const saveTimeoutRef = useRef(null);
 
     // Force re-render function
@@ -83,7 +78,7 @@ export default function MarkdownEditor({ fileId, fileName, user, settings }) {
         if (!fileId || !user) return;
 
         setSaving(true);
-        
+
         const { error } = await supabase
             .from('file_contents')
             .update({
@@ -100,7 +95,7 @@ export default function MarkdownEditor({ fileId, fileName, user, settings }) {
         } else {
             setLastSaved(new Date());
         }
-        
+
         setSaving(false);
     }, [fileId, user, settings.showNotifications]);
 
@@ -109,7 +104,7 @@ export default function MarkdownEditor({ fileId, fileName, user, settings }) {
         if (saveTimeoutRef.current) {
             clearTimeout(saveTimeoutRef.current);
         }
-        
+
         saveTimeoutRef.current = setTimeout(() => {
             saveContent(content);
         }, settings.autoSaveDelay);
@@ -174,10 +169,10 @@ export default function MarkdownEditor({ fileId, fileName, user, settings }) {
         editorProps: {
             attributes: {
                 class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-xl mx-auto focus:outline-none min-h-full p-6 max-w-none',
-                spellcheck: 'false', 
-                autocorrect: 'off',  
-                autocapitalize: 'off', 
-                'data-gramm': 'false' 
+                spellcheck: 'false',
+                autocorrect: 'off',
+                autocapitalize: 'off',
+                'data-gramm': 'false'
             },
             handleDrop: (view, event, slice, moved) => {
                 if (!moved && event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0]) {
@@ -203,7 +198,7 @@ export default function MarkdownEditor({ fileId, fileName, user, settings }) {
             handlePaste: (view, event, slice) => {
                 const items = Array.from(event.clipboardData?.items || []);
                 const imageItem = items.find(item => item.type.startsWith('image/'));
-                
+
                 if (imageItem) {
                     event.preventDefault();
                     const file = imageItem.getAsFile();
@@ -242,7 +237,7 @@ export default function MarkdownEditor({ fileId, fileName, user, settings }) {
         if (!fileId || !user || !editor) return;
 
         setLoading(true);
-        
+
         // First try to get existing content
         let { data: contentData, error } = await supabase
             .from('file_contents')
@@ -269,7 +264,7 @@ export default function MarkdownEditor({ fileId, fileName, user, settings }) {
                 }
                 return;
             }
-            
+
             contentData = newContent;
         } else if (error) {
             console.error('Error loading content:', error);
@@ -282,7 +277,7 @@ export default function MarkdownEditor({ fileId, fileName, user, settings }) {
         editor.commands.setContent(contentData.content || '');
         setLastSaved(new Date(contentData.updated_at));
         setLoading(false);
-        
+
         // Force toolbar update after loading content
         forceUpdate();
     }, [fileId, user, editor, forceUpdate, settings.showNotifications]);
@@ -359,10 +354,69 @@ export default function MarkdownEditor({ fileId, fileName, user, settings }) {
 
         setShowLinkDialog(false);
         setLinkUrl('');
-        
+
         // Force toolbar update after link insertion
         forceUpdate();
     }, [editor, linkUrl, forceUpdate]);
+
+    // Handler to open dialog
+    const openCustomDialog = (type) => {
+        setCustomType(type);
+        setCustomValue('');
+        setShowCustomDialog(true);
+    };
+
+    const handleParseAndSend = async () => {
+        let parsedContent = '';
+        try {
+            switch (customType) {
+                case 'youtube':
+                    parsedContent = await getYoutubeTranscript(customValue);
+                    break;
+                case 'pdf':
+                    parsedContent = await parsePdf(customValue);
+                    break;
+                case 'document':
+                    parsedContent = await parseDoc(customValue);
+                    break;
+                case 'webpage':
+                    parsedContent = await fetchWebpageText(customValue);
+                    break;
+                case 'longtext':
+                    parsedContent = getLongText(customValue);
+                    break;
+                default:
+                    parsedContent = '';
+            }
+
+            if (editor) {
+                editor.chain().focus().setContent('AI is generating...').run();
+            }
+            let streamedContent = '';
+            await streamAiResponse(
+                parsedContent,
+                'deepseek/deepseek-r1:free', 
+                makeNotesPrompt(parsedContent),
+                (token) => {
+                    streamedContent += token;
+                    if (editor) {
+                        editor.commands.setContent(streamedContent);
+                    }
+                }
+            );
+
+            console.log('Streamed AI content:', streamedContent); 
+
+            toast.success('Content generated!');
+        } catch (err) {
+            console.error('AI error:', err); 
+            toast.error('Failed to parse or send content');
+        }
+        setShowCustomDialog(false);
+        setCustomValue('');
+    };
+
+    // Use handleParseAndSend instead of insertCustomContent in your dialog
 
     if (loading) {
         return (
@@ -383,8 +437,30 @@ export default function MarkdownEditor({ fileId, fileName, user, settings }) {
     return (
         <div className="h-full flex flex-col bg-background">
             {/* Status bar */}
-            <div className="flex justify-between items-center px-4 py-2 border-b border-border bg-muted/30 text-xs text-muted-foreground">
-                <span>{fileName}</span>
+            <div className="flex justify-between items-center px-4 py-2 border-b border-muted bg-muted/30 text-xs text-muted-foreground">
+                <div className="flex items-center gap-3">
+                    {/* Custom Insert Buttons with labels */}
+                    <button title="Insert YouTube Video" onClick={() => openCustomDialog('youtube')} className="p-1 rounded hover:bg-muted flex items-center gap-1">
+                        <Youtube className="w-4 h-4" />
+                        <span>YouTube</span>
+                    </button>
+                    <button title="Insert PDF" onClick={() => openCustomDialog('pdf')} className="p-1 rounded hover:bg-muted flex items-center gap-1">
+                        <File className="w-4 h-4" />
+                        <span>PDF</span>
+                    </button>
+                    <button title="Insert Document" onClick={() => openCustomDialog('document')} className="p-1 rounded hover:bg-muted flex items-center gap-1">
+                        <FileText className="w-4 h-4" />
+                        <span>Document</span>
+                    </button>
+                    <button title="Insert Webpage Link" onClick={() => openCustomDialog('webpage')} className="p-1 rounded hover:bg-muted flex items-center gap-1">
+                        <Globe2 className="w-4 h-4" />
+                        <span>Webpage</span>
+                    </button>
+                    <button title="Insert Long Text" onClick={() => openCustomDialog('longtext')} className="p-1 rounded hover:bg-muted flex items-center gap-1">
+                        <AlignLeft className="w-4 h-4" />
+                        <span>Long Text</span>
+                    </button>
+                </div>
                 <div className="flex items-center gap-2">
                     {saving && (
                         <span className="flex items-center gap-1">
@@ -402,11 +478,10 @@ export default function MarkdownEditor({ fileId, fileName, user, settings }) {
                             }
                         }}
                         disabled={saving}
-                        className={`px-2 py-0.5 rounded-md text-xs transition-colors ${
-                            saving 
-                                ? 'bg-muted text-muted-foreground cursor-not-allowed' 
-                                : 'bg-primary text-primary-foreground hover:bg-primary/90'
-                        }`}
+                        className={`px-2 py-0.5 rounded-md text-xs transition-colors ${saving
+                            ? 'bg-muted text-muted-foreground cursor-not-allowed'
+                            : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                            }`}
                         title="Save now (Ctrl+S)"
                     >
                         Save
@@ -605,8 +680,8 @@ export default function MarkdownEditor({ fileId, fileName, user, settings }) {
 
             {/* Editor */}
             <div className={`flex-1 overflow-y-auto editor-wrapper ${settings.lineNumbers ? 'show-line-numbers' : ''}`}>
-                <EditorContent 
-                    editor={editor} 
+                <EditorContent
+                    editor={editor}
                     className="h-full editor-content"
                 />
             </div>
@@ -630,7 +705,7 @@ export default function MarkdownEditor({ fileId, fileName, user, settings }) {
                                     setLinkUrl('');
                                 }
                             }}
-                            className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                            className="w-full px-3 py-2 border border-muted rounded-md focus:outline-none focus:ring-2 focus:ring-muted"
                             autoFocus
                         />
                         <div className="flex gap-2 mt-4 justify-end">
@@ -648,6 +723,61 @@ export default function MarkdownEditor({ fileId, fileName, user, settings }) {
                                 className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
                             >
                                 Add Link
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Custom Dialog */}
+            {showCustomDialog && (
+                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+                    <div className="bg-background border border-border rounded-md p-6 max-w-md w-full">
+                        <h3 className="text-lg font-semibold mb-4">
+                            {customType === 'youtube' && 'Insert YouTube Video'}
+                            {customType === 'pdf' && 'Insert PDF Link'}
+                            {customType === 'document' && 'Insert Document Link'}
+                            {customType === 'webpage' && 'Insert Webpage Link'}
+                            {customType === 'longtext' && 'Insert Long Text'}
+                        </h3>
+                        <input
+                            type="text"
+                            placeholder={
+                                customType === 'youtube' ? 'YouTube Video ID (e.g. dQw4w9WgXcQ)' :
+                                    customType === 'pdf' ? 'PDF URL' :
+                                        customType === 'document' ? 'Document URL' :
+                                            customType === 'webpage' ? 'Webpage URL' :
+                                                'Enter text...'
+                            }
+                            value={customValue}
+                            onChange={(e) => setCustomValue(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleParseAndSend();
+                                } else if (e.key === 'Escape') {
+                                    setShowCustomDialog(false);
+                                    setCustomValue('');
+                                }
+                            }}
+                            className="w-full px-3 py-2 border border-muted rounded-md focus:outline-none focus:ring-2 focus:ring-muted"
+                            autoFocus
+                        />
+                        <div className="flex gap-2 mt-4 justify-end">
+                            <button
+                                onClick={() => {
+                                    setShowCustomDialog(false);
+                                    setCustomValue('');
+                                }}
+                                className="px-4 py-2 text-sm border border-border rounded-md hover:bg-muted transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleParseAndSend}
+                                className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                            >
+                                Insert
                             </button>
                         </div>
                     </div>

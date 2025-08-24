@@ -9,7 +9,6 @@ import { Label } from '@/components/ui/label';
 import { Eye, EyeOff, Loader2, Mail, X, Github } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Function to generate a cool gamertag-style username like Reddit
 const generateGamerTag = () => {
     const adjectives = [
         'Epic', 'Legendary', 'Mystic', 'Shadow', 'Cosmic', 'Neon', 'Digital', 'Cyber',
@@ -124,7 +123,6 @@ export function LoginForm() {
     const handleOAuthLogin = async (provider) => {
         setOauthLoading(provider);
 
-        // Generate a cool gamertag for OAuth signups too
         const gamerTag = generateGamerTag();
 
         const { error } = await supabase.auth.signInWithOAuth({
@@ -135,7 +133,6 @@ export function LoginForm() {
                     access_type: 'offline',
                     prompt: 'consent',
                 },
-                // This will be used if the user doesn't have a display name
                 data: {
                     username: gamerTag
                 }
