@@ -372,16 +372,18 @@ export default function MarkdownEditor({ fileId, fileName, user, settings }) {
         try {
             switch (customType) {
                 case 'youtube':
-                    parsedContent = await getYoutubeTranscript(customValue);
+                    const videoId = extractYoutubeId(customValue.trim());
+                    if (!videoId) {
+                        toast.error('Invalid YouTube link or ID');
+                        return;
+                    }
+                    parsedContent = await getYoutubeTranscript(videoId);
                     break;
                 case 'pdf':
                     parsedContent = await parsePdf(customValue);
                     break;
                 case 'document':
                     parsedContent = await parseDoc(customValue);
-                    break;
-                case 'webpage':
-                    parsedContent = await fetchWebpageText(customValue);
                     break;
                 case 'longtext':
                     parsedContent = getLongText(customValue);
@@ -406,13 +408,10 @@ export default function MarkdownEditor({ fileId, fileName, user, settings }) {
                 (token) => {
                     streamedContent += token;
                     if (editor) {
-                        // Convert Markdown to HTML and set it
                         editor.commands.setContent(marked(streamedContent));
                     }
                 }
             );
-
-            toast.success('Content generated!');
         } catch (err) {
             console.error('AI error:', err);
             toast.error('Failed to parse or send content');
@@ -420,6 +419,14 @@ export default function MarkdownEditor({ fileId, fileName, user, settings }) {
     };
 
     // Use handleParseAndSend instead of insertCustomContent in your dialog
+
+    function extractYoutubeId(input) {
+        // Accepts full URL or just the ID
+        const match = input.match(/(?:v=|\/embed\/|\/v\/|youtu\.be\/|\/watch\?v=)([a-zA-Z0-9_-]{11})/);
+        if (match) return match[1];
+        if (/^[a-zA-Z0-9_-]{11}$/.test(input)) return input;
+        return null;
+    }
 
     if (loading) {
         return (
@@ -455,10 +462,11 @@ export default function MarkdownEditor({ fileId, fileName, user, settings }) {
                         <FileText className="w-4 h-4" />
                         <span>Document</span>
                     </button>
-                    <button title="Insert Webpage Link" onClick={() => openCustomDialog('webpage')} className="p-1 rounded hover:bg-muted flex items-center gap-1">
+                    {/* Remove the "Insert Webpage Link" button from the status bar */}
+                    {/* <button title="Insert Webpage Link" onClick={() => openCustomDialog('webpage')} className="p-1 rounded hover:bg-muted flex items-center gap-1">
                         <Globe2 className="w-4 h-4" />
                         <span>Webpage</span>
-                    </button>
+                    </button> */}
                     <button title="Insert Long Text" onClick={() => openCustomDialog('longtext')} className="p-1 rounded hover:bg-muted flex items-center gap-1">
                         <AlignLeft className="w-4 h-4" />
                         <span>Long Text</span>
@@ -738,34 +746,104 @@ export default function MarkdownEditor({ fileId, fileName, user, settings }) {
                     <div className="bg-background border border-border rounded-md p-6 max-w-md w-full">
                         <h3 className="text-lg font-semibold mb-4">
                             {customType === 'youtube' && 'Insert YouTube Video'}
-                            {customType === 'pdf' && 'Insert PDF Link'}
-                            {customType === 'document' && 'Insert Document Link'}
-                            {customType === 'webpage' && 'Insert Webpage Link'}
+                            {customType === 'pdf' && 'Upload PDF'}
+                            {customType === 'document' && 'Upload Document'}
+                            {/* Remove the "Webpage Link" option from the custom dialog */}
+                            {/* {customType === 'webpage' && 'Insert Webpage Link'} */}
                             {customType === 'longtext' && 'Insert Long Text'}
                         </h3>
-                        <input
-                            type="text"
-                            placeholder={
-                                customType === 'youtube' ? 'YouTube Video ID (e.g. dQw4w9WgXcQ)' :
-                                    customType === 'pdf' ? 'PDF URL' :
-                                        customType === 'document' ? 'Document URL' :
-                                            customType === 'webpage' ? 'Webpage URL' :
-                                                'Enter text...'
-                            }
-                            value={customValue}
-                            onChange={(e) => setCustomValue(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    handleParseAndSend();
-                                } else if (e.key === 'Escape') {
+                        {/* YouTube Input */}
+                        {customType === 'youtube' && (
+                            <input
+                                type="text"
+                                placeholder="YouTube Video URL or ID"
+                                value={customValue}
+                                onChange={(e) => setCustomValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        handleParseAndSend();
+                                    } else if (e.key === 'Escape') {
+                                        setShowCustomDialog(false);
+                                        setCustomValue('');
+                                    }
+                                }}
+                                className="w-full px-3 py-2 border border-muted rounded-md focus:outline-none focus:ring-2 focus:ring-muted"
+                                autoFocus
+                            />
+                        )}
+                        {/* PDF Upload */}
+                        {customType === 'pdf' && (
+                            <input
+                                type="file"
+                                accept="application/pdf"
+                                onChange={async (e) => {
+                                    const file = e.target.files[0];
+                                    if (!file) return;
                                     setShowCustomDialog(false);
                                     setCustomValue('');
-                                }
-                            }}
-                            className="w-full px-3 py-2 border border-muted rounded-md focus:outline-none focus:ring-2 focus:ring-muted"
-                            autoFocus
-                        />
+                                    let parsedContent = await parsePdf(file);
+                                    let streamedContent = '';
+                                    if (editor) {
+                                        editor.chain().focus().setContent('AI is generating...').run();
+                                    }
+                                    await streamAiResponse(
+                                        parsedContent,
+                                        'deepseek/deepseek-r1:free',
+                                        makeNotesPrompt(parsedContent),
+                                        (token) => {
+                                            streamedContent += token;
+                                            if (editor) {
+                                                editor.commands.setContent(marked(streamedContent));
+                                            }
+                                        }
+                                    );
+                                }}
+                                className="w-full px-3 py-2 border border-muted rounded-md focus:outline-none focus:ring-2 focus:ring-muted"
+                            />
+                        )}
+                        {/* Document Upload */}
+                        {customType === 'document' && (
+                            <input
+                                type="file"
+                                accept=".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                onChange={async (e) => {
+                                    const file = e.target.files[0];
+                                    if (!file) return;
+                                    setShowCustomDialog(false);
+                                    setCustomValue('');
+                                    let parsedContent = await parseDoc(file);
+                                    let streamedContent = '';
+                                    if (editor) {
+                                        editor.chain().focus().setContent('AI is generating...').run();
+                                    }
+                                    await streamAiResponse(
+                                        parsedContent,
+                                        'deepseek/deepseek-r1:free',
+                                        makeNotesPrompt(parsedContent),
+                                        (token) => {
+                                            streamedContent += token;
+                                            if (editor) {
+                                                editor.commands.setContent(marked(streamedContent));
+                                            }
+                                        }
+                                    );
+                                }}
+                                className="w-full px-3 py-2 border border-muted rounded-md focus:outline-none focus:ring-2 focus:ring-muted"
+                            />
+                        )}
+                        {/* Long Text */}
+                        {customType === 'longtext' && (
+                            <textarea
+                                placeholder="Enter long text..."
+                                value={customValue}
+                                onChange={(e) => setCustomValue(e.target.value)}
+                                rows={10}
+                                style={{ resize: 'vertical', minHeight: '180px', maxHeight: '400px', overflowY: 'auto' }}
+                                className="w-full px-3 py-2 border border-muted rounded-md focus:outline-none focus:ring-2 focus:ring-muted"
+                                autoFocus
+                            />
+                        )}
                         <div className="flex gap-2 mt-4 justify-end">
                             <button
                                 onClick={() => {
@@ -776,12 +854,14 @@ export default function MarkdownEditor({ fileId, fileName, user, settings }) {
                             >
                                 Cancel
                             </button>
-                            <button
-                                onClick={handleParseAndSend}
-                                className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-                            >
-                                Insert
-                            </button>
+                            {(customType === 'youtube' || customType === 'longtext') && (
+                                <button
+                                    onClick={handleParseAndSend}
+                                    className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                                >
+                                    Insert
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

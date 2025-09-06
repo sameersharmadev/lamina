@@ -14,6 +14,7 @@ export async function POST(req) {
   const { textStream } = await streamText({
     model: openrouter(modelName),
     prompt: finalPrompt,
+    maxTokens: 30000, // Add this line to limit completion tokens
   });
 
   // Return the textStream as a Response for streaming

@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import Sidebar from "@/components/Sidebar";
 import TabSystem from "@/components/TabSystem";
 import { toast } from 'sonner';
-import { useSettings } from '../lib/SettingsContext'; // Import the settings hook
+import { useSettings } from '../lib/SettingsContext'; 
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -13,7 +13,7 @@ const supabase = createClient(
 );
 
 export default function Application() {
-    const { settings, loading: settingsLoading } = useSettings(); // Use the settings hook
+    const { settings, loading: settingsLoading } = useSettings(); 
     const [openTabs, setOpenTabs] = useState([]);
     const [activeTabId, setActiveTabId] = useState(null);
     const [user, setUser] = useState(null);
