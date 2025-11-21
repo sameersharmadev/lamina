@@ -125,24 +125,76 @@ export default function HomePage() {
                         {/* Dashboard Preview with fade effect */}
                         <div className="mt-16 relative flex justify-center">
                             <div className="relative w-full max-w-6xl mx-auto">
+                                {/* intensified layered white glow behind image */}
+                                <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
+                                    {/* largest soft halo */}
+                                    <div
+                                        style={{
+                                            position: 'absolute',
+                                            left: '50%',
+                                            top: '6%',
+                                            width: '220%',
+                                            height: '120%',
+                                            transform: 'translateX(-50%) translateY(-8%)',
+                                            background:
+                                                'radial-gradient(closest-side at 50% 12%, rgba(255,255,255,0.75), rgba(255,255,255,0.45) 20%, rgba(255,255,255,0.12) 45%, transparent 75%)',
+                                            filter: 'blur(140px)',
+                                            opacity: 0.95,
+                                        }}
+                                    />
+
+                                    {/* stronger inner glow to make image pop */}
+                                    <div
+                                        style={{
+                                            position: 'absolute',
+                                            left: '50%',
+                                            top: '12%',
+                                            width: '120%',
+                                            height: '72%',
+                                            transform: 'translateX(-50%) translateY(-4%)',
+                                            background:
+                                                'radial-gradient(closest-side at 50% 10%, rgba(255,255,255,0.9), rgba(255,255,255,0.6) 24%, rgba(255,255,255,0.18) 48%, transparent 80%)',
+                                            filter: 'blur(44px)',
+                                            opacity: 0.95,
+                                        }}
+                                    />
+
+                                    {/* subtle side fills to extend glow left/right */}
+                                    <div
+                                        style={{
+                                            position: 'absolute',
+                                            left: '50%',
+                                            top: '20%',
+                                            width: '120%',
+                                            height: '40%',
+                                            transform: 'translateX(-50%)',
+                                            background:
+                                                'linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.16), rgba(255,255,255,0.06))',
+                                            filter: 'blur(60px)',
+                                            opacity: 0.9,
+                                        }}
+                                    />
+                                </div>
+
                                 <Image
                                     src="/dashboard-preview.png"
                                     alt="Lamina Dashboard Preview"
                                     width={1200}
                                     height={800}
-                                    className="w-full h-auto"
+                                    className="w-full h-auto relative z-20"
                                     priority
                                     style={{ display: 'block' }}
                                 />
-                                {/* Fade effect overlay */}
-                                <div
-                                    className="pointer-events-none absolute left-0 right-0 bottom-0 h-32"
-                                    style={{
-                                        background: "linear-gradient(to bottom, rgba(16,16,16,0) 0%, #101010 100%)"
-                                    }}
-                                />
-                            </div>
-                        </div>
+ 
+                                 {/* Fade effect overlay (fade down) */}
+                                 <div
+                                     className="pointer-events-none absolute left-0 right-0 bottom-0 h-32 z-30"
+                                     style={{
+                                         background: "linear-gradient(to bottom, rgba(16,16,16,0) 0%, #101010 100%)"
+                                     }}
+                                 />
+                             </div>
+                         </div>
                     </div>
                 </div>
             </section>
